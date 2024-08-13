@@ -1,5 +1,5 @@
 import constants
-from data import pokedex
+import data
 from ...damage_calculator import is_super_effective
 
 
@@ -253,7 +253,7 @@ def revelationdance(attacking_side, attacking_move, defending_move, attacking_po
 
 def lowkick(attacking_side, attacking_move, defending_move, attacking_pokemon, defending_pokemon, first_move, weather, terrain):
     attacking_move = attacking_move.copy()
-    defending_pokemon_weight = pokedex[defending_pokemon.id][constants.WEIGHT]
+    defending_pokemon_weight = data.pokedex[defending_pokemon.id][constants.WEIGHT]
 
     if defending_pokemon_weight < 10:
         attacking_move[constants.BASE_POWER] = 20
@@ -424,7 +424,7 @@ def shoreup(attacking_side, attacking_move, defending_move, attacking_pokemon, d
 
 def heavyslam(attacking_side, attacking_move, defending_move, attacking_pokemon, defending_pokemon, first_move, weather, terrain):
     try:
-        weight_ratio = pokedex[defending_pokemon.id][constants.WEIGHT] / pokedex[attacking_pokemon.id][constants.WEIGHT]
+        weight_ratio = data.pokedex[defending_pokemon.id][constants.WEIGHT] / data.pokedex[attacking_pokemon.id][constants.WEIGHT]
     except ZeroDivisionError:
         return attacking_move
 
@@ -633,6 +633,11 @@ def hydrosteam(attacking_side, attacking_move, defending_move, attacking_pokemon
         attacking_move[constants.BASE_POWER] *= 3
     return attacking_move
 
+def sleeptalk(attacking_side, attacking_move, defending_move, attacking_pokemon, defending_pokemon, first_move, weather, terrain):
+    if attacking_pokemon.status != constants.SLEEP:
+        attacking_move = attacking_move.copy()
+        attacking_move[constants.ACCURACY] = False
+    return attacking_move
 
 move_lookup = {
     "hydrosteam": hydrosteam,
@@ -722,6 +727,8 @@ move_lookup = {
     'electrodrift': collisioncourse,
     'filletaway': filletaway,
     'terablast': terablast,
+    'sleeptalk': sleeptalk,
+    'snore': sleeptalk
 }
 
 

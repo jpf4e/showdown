@@ -11,8 +11,6 @@ import logging
 from config import ShowdownConfig
 
 import data
-from data import all_move_json
-from data import pokedex
 from data.parse_smogon_stats import MOVES_STRING
 from data.parse_smogon_stats import SPREADS_STRING
 from data.parse_smogon_stats import ABILITY_STRING
@@ -76,11 +74,14 @@ class Battle(ABC):
         self.battle_type = None
         self.generation = None
         self.time_remaining = None
+        self.max_chosen_team_size = 6
 
         self.request_json = None
 
     def initialize_team_preview(self, user_json, opponent_pokemon, battle_type):
         self.user.from_json(user_json, first_turn=True)
+        if constants.MAX_CHOSEN_TEAM_SIZE in user_json:
+            self.max_chosen_team_size = user_json[constants.MAX_CHOSEN_TEAM_SIZE]
         self.user.reserve.insert(0, self.user.active)
         self.user.active = None
 
@@ -107,17 +108,19 @@ class Battle(ABC):
 
     def start_non_team_preview_battle(self, user_json, opponent_switch_string):
         self.user.from_json(user_json, first_turn=True)
+        self.user.active.seen = True
 
         pkmn_information = opponent_switch_string.split('|')[3]
         pkmn = Pokemon.from_switch_string(pkmn_information)
         self.opponent.active = pkmn
+        self.opponent.active.seen = True
 
         self.started = True
         self.rqid = user_json[constants.RQID]
 
     def mega_evolve_possible(self):
         return (
-                any(g in self.generation for g in constants.MEGA_EVOLVE_GENERATIONS) or
+                any(g == self.generation for g in constants.MEGA_EVOLVE_GENERATIONS) or
                 'nationaldex' in ShowdownConfig.pokemon_mode
         )
 
@@ -210,16 +213,16 @@ class Battle(ABC):
         user = Side(user_active, user_reserve, copy(self.user.wish), copy(self.user.side_conditions), copy(self.user.future_sight))
         opponent = Side(opponent_active, opponent_reserve, copy(self.opponent.wish), copy(self.opponent.side_conditions), copy(self.opponent.future_sight))
 
-        state = State(user, opponent, self.weather, self.field, self.trick_room)
+        state = State(user, opponent, self.weather, self.field, self.trick_room, self.max_chosen_team_size)
         return state
 
-    def get_all_options(self):
+    def get_all_options(self, team_preview=False):
         force_switch = self.force_switch or self.user.active.hp <= 0
         wait = self.wait or self.opponent.active.hp <= 0
 
         # double faint or team preview
         if force_switch and wait:
-            user_options = self.user.get_switches() or [constants.DO_NOTHING_MOVE]
+            user_options = self.user.get_switches(max_chosen_team_size=self.max_chosen_team_size, team_preview=team_preview) or [constants.DO_NOTHING_MOVE]
 
             # edge-case for uturn or voltswitch killing
             if (
@@ -230,12 +233,12 @@ class Battle(ABC):
             ):
                 opponent_options = [constants.DO_NOTHING_MOVE]
             else:
-                opponent_options = self.opponent.get_switches() or [constants.DO_NOTHING_MOVE]
+                opponent_options = self.opponent.get_switches(max_chosen_team_size=self.max_chosen_team_size, team_preview=team_preview) or [constants.DO_NOTHING_MOVE]
 
             return user_options, opponent_options
 
         if force_switch:
-            user_options = self.user.get_switches(reviving=self.user.active.reviving)
+            user_options = self.user.get_switches(reviving=self.user.active.reviving, max_chosen_team_size=self.max_chosen_team_size, team_preview=team_preview)
 
             # uturn or voltswitch
             if (
@@ -247,7 +250,7 @@ class Battle(ABC):
             else:
                 opponent_options = [constants.DO_NOTHING_MOVE]
         elif wait:
-            opponent_options = self.opponent.get_switches()
+            opponent_options = self.opponent.get_switches(max_chosen_team_size=self.max_chosen_team_size, team_preview=team_preview)
             user_options = [constants.DO_NOTHING_MOVE]
         else:
             user_forced_move = self.user.active.forced_move()
@@ -255,19 +258,19 @@ class Battle(ABC):
                 user_options = [user_forced_move]
             else:
                 user_options = [m.name for m in self.user.active.moves if not m.disabled]
-                user_options += self.user.get_switches()
+                user_options += self.user.get_switches(max_chosen_team_size=self.max_chosen_team_size, team_preview=team_preview)
 
             opponent_forced_move = self.opponent.active.forced_move()
             if opponent_forced_move:
                 opponent_options = [opponent_forced_move]
             else:
                 opponent_options = [m.name for m in self.opponent.active.moves if not m.disabled] or [constants.DO_NOTHING_MOVE]
-                opponent_options += self.opponent.get_switches()
+                opponent_options += self.opponent.get_switches(max_chosen_team_size=self.max_chosen_team_size, team_preview=team_preview)
 
         return user_options, opponent_options
 
     @abstractmethod
-    def find_best_move(self):
+    def find_best_move(self, team_preview=False):
         ...
 
 
@@ -300,7 +303,7 @@ class Battler:
     def lock_active_pkmn_status_moves_if_active_has_assaultvest(self):
         if self.active.item == 'assaultvest':
             for m in self.active.moves:
-                if all_move_json[m.name][constants.CATEGORY] == constants.STATUS:
+                if data.all_move_json[m.name][constants.CATEGORY] == constants.STATUS:
                     m.disabled = True
 
     def choice_lock_moves(self):
@@ -313,7 +316,7 @@ class Battler:
     def taunt_lock_moves(self):
         if constants.TAUNT in self.active.volatile_statuses:
             for m in self.active.moves:
-                if all_move_json[m.name][constants.CATEGORY] == constants.STATUS:
+                if data.all_move_json[m.name][constants.CATEGORY] == constants.STATUS:
                     m.disabled = True
 
     def lock_moves(self):
@@ -350,7 +353,8 @@ class Battler:
 
             nickname = pkmn_dict[constants.IDENT]
             pkmn = Pokemon.from_switch_string(pkmn_dict[constants.DETAILS], nickname=nickname)
-            pkmn.ability = pkmn_dict[constants.REQUEST_DICT_ABILITY]
+            if constants.REQUEST_DICT_ABILITY in pkmn_dict:
+                pkmn.ability = pkmn_dict[constants.REQUEST_DICT_ABILITY]
             pkmn.index = index + 1
             pkmn.reviving = pkmn_dict.get(constants.REVIVING, False)
             pkmn.hp, pkmn.max_hp, pkmn.status = get_pokemon_info_from_condition(pkmn_dict[constants.CONDITION])
@@ -421,15 +425,17 @@ class Battler:
             except KeyError:
                 pass
 
-    def get_switches(self, reviving=False):
+    def get_switches(self, reviving=False, max_chosen_team_size=6, team_preview=False):
+        get_only_seen = not team_preview and max_chosen_team_size == len([x for x in self.reserve if x.seen]) + 1
+
         if self.trapped:
             return []
 
         switches = []
         if reviving:
-            it = filter(lambda p: p.hp <= 0, self.reserve)
+            it = filter(lambda p: p.hp <= 0, self.reserve if not get_only_seen else [x for x in self.reserve if x.seen])
         else:
-            it = filter(lambda p: p.hp > 0, self.reserve)
+            it = filter(lambda p: p.hp > 0, self.reserve if not get_only_seen else [x for x in self.reserve if x.seen])
 
         for pkmn in it:
             switches.append("{} {}".format(constants.SWITCH_STRING, pkmn.name))
@@ -458,12 +464,12 @@ class Pokemon:
         self.speed_range = StatRange(min=0, max=float("inf"))
 
         try:
-            self.base_stats = pokedex[self.name][constants.BASESTATS]
+            self.base_stats = data.pokedex[self.name][constants.BASESTATS]
         except KeyError:
             logger.info("Could not pokedex entry for {}".format(self.name))
-            self.name = [k for k in pokedex if self.name.startswith(k)][0]
+            self.name = [k for k in data.pokedex if self.name.startswith(k)][0]
             logger.info("Using {} instead".format(self.name))
-            self.base_stats = pokedex[self.name][constants.BASESTATS]
+            self.base_stats = data.pokedex[self.name][constants.BASESTATS]
 
         self.stats = calculate_stats(self.base_stats, self.level, nature=nature, evs=evs)
 
@@ -474,7 +480,7 @@ class Pokemon:
             self.hp = 1
 
         self.ability = None
-        self.types = pokedex[self.name][constants.TYPES]
+        self.types = data.pokedex[self.name][constants.TYPES]
         self.item = constants.UNKNOWN_ITEM
 
         self.terastallized = False
@@ -494,6 +500,7 @@ class Pokemon:
         self.can_not_have_specs = False
         self.can_have_life_orb = True
         self.can_have_heavydutyboots = True
+        self.seen = False
 
     def forme_change(self, new_pkmn_name):
         hp_percent = float(self.hp) / self.max_hp
@@ -711,7 +718,8 @@ class Pokemon:
             constants.STATUS: self.status,
             constants.TERASTALLIZED: self.terastallized,
             constants.VOLATILE_STATUS: set(self.volatile_statuses),
-            constants.MOVES: [m.to_dict() for m in self.moves]
+            constants.MOVES: [m.to_dict() for m in self.moves],
+            constants.SEEN: self.seen
         }
 
     @classmethod
@@ -735,7 +743,7 @@ class Move:
         name = normalize_name(name)
         if constants.HIDDEN_POWER in name and not name.endswith(constants.HIDDEN_POWER_ACTIVE_MOVE_BASE_DAMAGE_STRING):
             name = "{}{}".format(name, constants.HIDDEN_POWER_ACTIVE_MOVE_BASE_DAMAGE_STRING)
-        move_json = all_move_json[name]
+        move_json = data.all_move_json[name]
         self.name = name
         self.max_pp = int(move_json.get(constants.PP) * 1.6)
 

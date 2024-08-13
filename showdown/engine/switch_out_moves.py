@@ -12,7 +12,7 @@ def switch_out_move_triggered(move, damage_amounts):
 def get_best_switch_pokemon(mutator, instructions, attacker, attacking_side, defending_move, first_move):
     from .select_best_move import get_payoff_matrix
 
-    switches = attacking_side.get_switches()
+    switches = attacking_side.get_switches(max_chosen_team_size=mutator.state.max_chosen_team_size)
     if not switches or instructions.frozen:
         return None
 

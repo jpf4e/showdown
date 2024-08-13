@@ -2,7 +2,7 @@ from copy import copy
 
 import constants
 from config import ShowdownConfig
-from data import all_move_json
+import data
 
 from . import instruction_generator
 from .damage_calculator import _calculate_damage
@@ -25,7 +25,7 @@ def lookup_move(move_name):
             constants.SWITCH_STRING: split_move[1]
         }
 
-    return all_move_json[move_name.lower()]
+    return data.all_move_json[move_name.lower()]
 
 
 def get_effective_speed(state, side):

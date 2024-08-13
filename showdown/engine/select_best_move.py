@@ -5,7 +5,9 @@ import constants
 
 from .evaluate import evaluate
 from .find_state_instructions import get_all_state_instructions
+import logging
 
+logger = logging.getLogger(__name__)
 
 WON_BATTLE = 100
 

@@ -1,7 +1,6 @@
 import constants
 
 import data
-from data import pokedex
 from data.parse_smogon_stats import get_smogon_stats_file_name
 from data.parse_smogon_stats import get_pokemon_information
 
@@ -190,8 +189,8 @@ def get_standard_battle_sets(battle_mode, pokemon_names=None):
 
 def get_mega_pkmn_name(pkmn_name):
     mega_name = "{}mega".format(pkmn_name)
-    if mega_name in pokedex:
+    if mega_name in data.pokedex:
         return mega_name
-    elif mega_name + "x" in pokedex:  # for megas with two evolutions, return the x version
+    elif mega_name + "x" in data.pokedex:  # for megas with two evolutions, return the x version
         return mega_name + "x"
     return None

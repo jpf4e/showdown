@@ -3,7 +3,7 @@ from copy import deepcopy
 
 from data.team_datasets import TeamDatasets
 from showdown.battle import Battle
-from ..helpers import pick_safest_move_from_battles
+from ..helpers import pick_safest_move_using_dynamic_search_depth
 from ..helpers import format_decision
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ class BattleBot(Battle):
                         for m in split_info[5:]:
                             pkmn_obj.add_move(m)
 
-    def find_best_move(self):
+    def find_best_move(self, team_preview=False):
         battles = prepare_battles(self)
-        safest_move = pick_safest_move_from_battles(battles)
+        safest_move = pick_safest_move_using_dynamic_search_depth(battles, team_preview)
         return format_decision(self, safest_move)

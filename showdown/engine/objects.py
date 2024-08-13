@@ -2,7 +2,7 @@ from collections import defaultdict
 from copy import copy
 
 import constants
-from data import all_move_json
+import data
 
 
 boost_multiplier_lookup = {
@@ -23,14 +23,15 @@ boost_multiplier_lookup = {
 
 
 class State(object):
-    __slots__ = ('user', 'opponent', 'weather', 'field', 'trick_room')
+    __slots__ = ('user', 'opponent', 'weather', 'field', 'trick_room', 'max_chosen_team_size')
 
-    def __init__(self, user, opponent, weather, field, trick_room):
+    def __init__(self, user, opponent, weather, field, trick_room, max_chosen_team_size):
         self.user = user
         self.opponent = opponent
         self.weather = weather
         self.field = field
         self.trick_room = trick_room
+        self.max_chosen_team_size = max_chosen_team_size
 
     def get_self_options(self, force_switch):
         forced_move = self.user.active.forced_move()
@@ -45,7 +46,7 @@ class State(object):
         if self.user.trapped(self.opponent.active):
             possible_switches = []
         else:
-            possible_switches = self.user.get_switches()
+            possible_switches = self.user.get_switches(max_chosen_team_size=self.max_chosen_team_size)
 
         return possible_moves + possible_switches
 
@@ -62,7 +63,7 @@ class State(object):
         if self.opponent.trapped(self.user.active):
             possible_switches = []
         else:
-            possible_switches = self.opponent.get_switches()
+            possible_switches = self.opponent.get_switches(max_chosen_team_size=self.max_chosen_team_size)
 
         return possible_moves + possible_switches
 
@@ -114,7 +115,8 @@ class State(object):
             Side.from_dict(state_dict[constants.OPPONENT]),
             state_dict[constants.WEATHER],
             state_dict[constants.FIELD],
-            state_dict[constants.TRICK_ROOM]
+            state_dict[constants.TRICK_ROOM],
+            state_dict[constants.MAX_CHOSEN_TEAM_SIZE_DICT]
         )
 
     def __repr__(self):
@@ -139,11 +141,13 @@ class Side(object):
         self.side_conditions = side_conditions
         self.future_sight = future_sight
 
-    def get_switches(self):
+    def get_switches(self, max_chosen_team_size=6, team_preview=False):
+        get_only_seen = not team_preview and max_chosen_team_size == len([x for x in self.reserve.values() if x.seen]) + 1
         switches = []
-        for pkmn_name, pkmn in self.reserve.items():
+        pokemon_to_loop = self.reserve.values() if not get_only_seen else [x for x in self.reserve.values() if x.seen]
+        for pkmn in pokemon_to_loop:
             if pkmn.hp > 0:
-                switches.append("{} {}".format(constants.SWITCH_STRING, pkmn_name))
+                switches.append("{} {}".format(constants.SWITCH_STRING, pkmn.id))
         return switches
 
     def trapped(self, opponent_active):
@@ -207,7 +211,8 @@ class Pokemon(object):
         'volatile_status',
         'moves',
         'terastallized',
-        'burn_multiplier'
+        'burn_multiplier',
+        'seen'
     )
 
     def __init__(
@@ -236,7 +241,8 @@ class Pokemon(object):
         status=None,
         terastallized=False,
         volatile_status=None,
-        moves=None
+        moves=None,
+        seen=False
     ):
         self.id = identifier
         self.level = level
@@ -267,6 +273,7 @@ class Pokemon(object):
         # evaluation relies on a multiplier for the burn status
         # it is calculated here to save time during evaluation
         self.burn_multiplier = self.calculate_burn_multiplier()
+        self.seen = seen
 
     def calculate_burn_multiplier(self):
         # this will result in a positive evaluation for a burned pokemon
@@ -274,7 +281,7 @@ class Pokemon(object):
             return -2
 
         # +1 to the multiplier for each physical move
-        burn_multiplier = len([m for m in self.moves if all_move_json[m[constants.ID]][constants.CATEGORY] == constants.PHYSICAL])
+        burn_multiplier = len([m for m in self.moves if data.all_move_json[m[constants.ID]][constants.CATEGORY] == constants.PHYSICAL])
 
         # evaluation could use more than 4 moves for opponent's pokemon - dont go over 4
         burn_multiplier = min(4, burn_multiplier)
@@ -371,7 +378,8 @@ class Pokemon(object):
             d[constants.STATUS],
             d[constants.TERASTALLIZED],
             d[constants.VOLATILE_STATUS],
-            d[constants.MOVES]
+            d[constants.MOVES],
+            d[constants.SEEN]
         )
 
     @classmethod
@@ -401,7 +409,8 @@ class Pokemon(object):
             d[constants.STATUS],
             d[constants.TERASTALLIZED],
             set(d[constants.VOLATILE_STATUS]),
-            d[constants.MOVES]
+            d[constants.MOVES],
+            d[constants.SEEN]
         )
 
     def calculate_boosted_stats(self):
@@ -445,7 +454,8 @@ class Pokemon(object):
                 constants.STATUS: self.status,
                 constants.TERASTALLIZED: self.terastallized,
                 constants.VOLATILE_STATUS: list(self.volatile_status),
-                constants.MOVES: self.moves
+                constants.MOVES: self.moves,
+                constants.SEEN: self.seen
             }
         )
 
@@ -484,6 +494,7 @@ class StateMutator:
     def __init__(self, state):
         self.state = state
         self.apply_instructions = {
+            constants.MUTATOR_SEEN: self.seen,
             constants.MUTATOR_SWITCH: self.switch,
             constants.MUTATOR_APPLY_VOLATILE_STATUS: self.apply_volatile_status,
             constants.MUTATOR_REMOVE_VOLATILE_STATUS: self.remove_volatile_status,
@@ -510,6 +521,7 @@ class StateMutator:
             constants.MUTATOR_CHANGE_STATS: self.change_stats
         }
         self.reverse_instructions = {
+            constants.MUTATOR_SEEN: self.reverse_seen,
             constants.MUTATOR_SWITCH: self.reverse_switch,
             constants.MUTATOR_APPLY_VOLATILE_STATUS: self.remove_volatile_status,
             constants.MUTATOR_REMOVE_VOLATILE_STATUS: self.apply_volatile_status,
@@ -570,6 +582,23 @@ class StateMutator:
             raise ValueError("{} not in pokemon's moves: {}".format(move_name, side.active.moves))
 
         move[constants.DISABLED] = False
+
+
+    def seen(self, side, pokemon_name):
+        side = self.get_side(side)
+        if side.active.id == pokemon_name:
+            side.active.seen = True
+        else:
+            reserve = side.reserve[pokemon_name]
+            reserve.seen = True
+
+    def reverse_seen(self, side, pokemon_name):
+        side = self.get_side(side)
+        if side.active.id == pokemon_name:
+            side.active.seen = False
+        else:
+            reserve = side.reserve[pokemon_name]
+            reserve.seen = False
 
     def switch(self, side, _, switch_pokemon_name):
         # the second parameter to this function is the current active pokemon

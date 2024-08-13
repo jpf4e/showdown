@@ -1,7 +1,7 @@
 import math
 import constants
 
-from data import all_move_json
+import data
 
 
 natures = {
@@ -119,7 +119,7 @@ def normalize_name(name):
 
 
 def set_makes_sense(nature, spread, item, ability, moves):
-    if item in constants.CHOICE_ITEMS and any(all_move_json[m.name][constants.CATEGORY] not in constants.DAMAGING_CATEGORIES and m.name != 'trick' for m in moves):
+    if item in constants.CHOICE_ITEMS and any(data.all_move_json[m.name][constants.CATEGORY] not in constants.DAMAGING_CATEGORIES and m.name != 'trick' for m in moves):
         return False
     return True
 

@@ -4,8 +4,7 @@ from copy import deepcopy
 import logging
 
 import constants
-from data import all_move_json
-from data import pokedex
+import data
 from showdown.battle import Pokemon
 from showdown.battle import LastUsedMove
 from showdown.battle import DamageDealt
@@ -26,7 +25,7 @@ MOVE_END_STRINGS = {'move', 'switch', 'upkeep', ''}
 
 def can_have_priority_modified(battle, pokemon, move_name):
     return (
-        "prankster" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()] or
+        "prankster" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()] or
         move_name == "grassyglide" and battle.field == constants.GRASSY_TERRAIN
     )
 
@@ -35,37 +34,37 @@ def can_have_speed_modified(battle, pokemon):
     return (
         (
             pokemon.item is None and
-            "unburden" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "unburden" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         ) or
         (
             battle.weather == constants.RAIN and
             pokemon.ability is None and
-            "swiftswim" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "swiftswim" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         ) or
         (
             battle.weather == constants.SUN and
             pokemon.ability is None and
-            "chlorophyll" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "chlorophyll" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         ) or
         (
             battle.weather == constants.SAND and
             pokemon.ability is None and
-            "sandrush" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "sandrush" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         ) or
         (
             battle.weather in constants.HAIL_OR_SNOW and
             pokemon.ability is None and
-            "slushrush" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "slushrush" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         ) or
         (
             battle.field == constants.ELECTRIC_TERRAIN and
             pokemon.ability is None and
-            "surgesurfer" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "surgesurfer" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         ) or
         (
             pokemon.status == constants.PARALYZED and
             pokemon.ability is None and
-            "quickfeet" in [normalize_name(a) for a in pokedex[pokemon.name][constants.ABILITIES].values()]
+            "quickfeet" in [normalize_name(a) for a in data.pokedex[pokemon.name][constants.ABILITIES].values()]
         )
     )
 
@@ -79,6 +78,7 @@ def find_pokemon_in_reserves(pkmn_name, reserves):
 
 def find_reserve_pokemon_by_nickname(pkmn_nickname, reserves):
     for reserve_pkmn in reserves:
+        logger.debug("Comparing {} with {}".format(pkmn_nickname, reserve_pkmn.nickname))
         if pkmn_nickname == reserve_pkmn.nickname:
             return reserve_pkmn
     return None
@@ -92,7 +92,7 @@ def get_move_information(m):
     # Given a |move| line from the PS protocol, extract the user of the move and the move object
     try:
         split_move_line = m.split("|")
-        return split_move_line[2], all_move_json[normalize_name(split_move_line[3])]
+        return split_move_line[2], data.all_move_json[normalize_name(split_move_line[3])]
     except KeyError:
         logger.debug("Unknown move {} - using standard 0 priority move".format(normalize_name(m.split('|')[3])))
         return m.split('|')[2], {constants.ID: "unknown", constants.PRIORITY: 0}
@@ -121,7 +121,7 @@ def request(battle, split_msg):
 
 
 def inactive(battle, split_msg):
-    regex_string = "(\d+) sec this turn"
+    regex_string = r"(\d+) sec this turn"
     if split_msg[2].startswith(constants.TIME_LEFT):
         capture = re.search(regex_string, split_msg[2])
         try:
@@ -150,7 +150,7 @@ def switch_or_drag(battle, split_msg):
         # set the pkmn's types back to their original value if the types were changed
         # if the pkmn is terastallized, this does not happen
         if constants.TYPECHANGE in side.active.volatile_statuses and not side.active.terastallized:
-            original_types = pokedex[side.active.name][constants.TYPES]
+            original_types = data.pokedex[side.active.name][constants.TYPES]
             logger.debug("{} had it's type changed - changing its types back to {}".format(side.active.name, original_types))
             side.active.types = original_types
 
@@ -160,7 +160,7 @@ def switch_or_drag(battle, split_msg):
             side.active.stats = calculate_stats(side.active.base_stats, side.active.level)
             side.active.ability = None
             side.active.moves = []
-            side.active.types = pokedex[side.active.name][constants.TYPES]
+            side.active.types = data.pokedex[side.active.name][constants.TYPES]
 
         # reset the boost of the pokemon being replaced
         side.active.boosts.clear()
@@ -204,6 +204,7 @@ def switch_or_drag(battle, split_msg):
         side.reserve.append(side.active)
 
     side.active = pkmn
+    side.active.seen = True
     if side.active.name in constants.UNKOWN_POKEMON_FORMES:
         side.active = Pokemon.from_switch_string(split_msg[3], nickname=nickname)
 
@@ -215,6 +216,7 @@ def heal_or_damage(battle, split_msg):
         pkmn = battle.opponent.active
         if len(split_msg) == 5 and split_msg[4] == "[from] move: Revival Blessing":
             nickname = Pokemon.extract_nickname_from_pokemonshowdown_string(split_msg[2])
+            logger.debug("Revival blessing reserves {}".format(side.reserve))
             pkmn = find_reserve_pokemon_by_nickname(nickname, side.reserve)
 
         # opponent hp is given as a percentage
@@ -230,6 +232,7 @@ def heal_or_damage(battle, split_msg):
         pkmn = battle.user.active
         if len(split_msg) == 5 and split_msg[4] == "[from] move: Revival Blessing":
             nickname = Pokemon.extract_nickname_from_pokemonshowdown_string(split_msg[2])
+            logger.debug("Revival blessing reserves {}".format(side.reserve))
             pkmn = find_reserve_pokemon_by_nickname(nickname, side.reserve)
         if constants.FNT in split_msg[3]:
             pkmn.hp = 0
@@ -321,21 +324,21 @@ def move(battle, split_msg):
     # if the opponent uses a boosting status move, they cannot have a choice item
     # this COULD be set for any status move, but some pkmn uncommonly run things like specs + wisp
     try:
-        if constants.BOOSTS in all_move_json[move_name] and all_move_json[move_name][constants.CATEGORY] == constants.STATUS:
+        if constants.BOOSTS in data.all_move_json[move_name] and data.all_move_json[move_name][constants.CATEGORY] == constants.STATUS:
             logger.debug("{} used a boosting status-move. Setting can_have_choice_item to False".format(pkmn.name))
             pkmn.can_have_choice_item = False
     except KeyError:
         pass
 
     try:
-        if all_move_json[move_name][constants.CATEGORY] == constants.STATUS:
+        if data.all_move_json[move_name][constants.CATEGORY] == constants.STATUS:
             logger.debug("{} used a status-move. Setting can_have_assultvest to False".format(pkmn.name))
             pkmn.can_have_assaultvest = False
     except KeyError:
         pass
 
     try:
-        category = all_move_json[move_name][constants.CATEGORY]
+        category = data.all_move_json[move_name][constants.CATEGORY]
         logger.debug("Setting {}'s last used move: {}".format(pkmn.name, move_name))
         side.last_used_move = LastUsedMove(
             pokemon_name=pkmn.name,
@@ -352,7 +355,7 @@ def move(battle, split_msg):
 
     # if this pokemon used a damaging move, eliminate the possibility of it having a lifeorb
     # the lifeorb will reveal itself if it has it
-    if category in constants.DAMAGING_CATEGORIES and not any([normalize_name(a) in ['sheerforce', 'magicguard'] for a in pokedex[pkmn.name][constants.ABILITIES].values()]):
+    if category in constants.DAMAGING_CATEGORIES and not any([normalize_name(a) in ['sheerforce', 'magicguard'] for a in data.pokedex[pkmn.name][constants.ABILITIES].values()]):
         logger.debug("{} used a damaging move - not guessing lifeorb anymore".format(pkmn.name))
         pkmn.can_have_life_orb = False
 
@@ -479,7 +482,7 @@ def start_volatile_status(battle, split_msg):
     if volatile_status == constants.TYPECHANGE:
         if split_msg[4] == "[from] move: Reflect Type":
             pkmn_name = normalize_name(split_msg[5].split(":")[-1])
-            new_types = deepcopy(pokedex[pkmn_name][constants.TYPES])
+            new_types = deepcopy(data.pokedex[pkmn_name][constants.TYPES])
         else:
             new_types = [normalize_name(t) for t in split_msg[4].split("/")]
 
@@ -988,7 +991,7 @@ def check_choice_band_or_specs(battle, damage_dealt):
         return
 
     try:
-        move_dict = all_move_json[damage_dealt.move]
+        move_dict = data.all_move_json[damage_dealt.move]
     except KeyError:
         logger.debug("Could not find the move {}, skipping choice item check".format(move))
         return
@@ -1066,7 +1069,7 @@ def check_heavydutyboots(battle, msg_lines):
 
     if (
         side_to_check.active.item != constants.UNKNOWN_ITEM or
-        'magicguard' in [normalize_name(a) for a in pokedex[side_to_check.active.name][constants.ABILITIES].values()]
+        'magicguard' in [normalize_name(a) for a in data.pokedex[side_to_check.active.name][constants.ABILITIES].values()]
     ):
         return
 

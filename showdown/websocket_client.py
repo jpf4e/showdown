@@ -3,6 +3,7 @@ import websockets
 import requests
 import json
 import time
+import constants
 
 import logging
 logger = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ class PSWebsocketClient:
             raise LoginError("Could not log-in")
 
     async def update_team(self, battle_format, team):
-        if "random" in battle_format:
+        if any([bt in battle_format for bt in constants.RANDOM_TEAM_FORMATS]):
             logger.info("Setting team to None because the pokemon mode is {}".format(battle_format))
             message = ["/utm None"]
         else:
@@ -119,12 +120,11 @@ class PSWebsocketClient:
         await self.send_message('', message)
         self.last_challenge_time = time.time()
 
-    async def accept_challenge(self, battle_format, team, room_name):
+    async def accept_challenge(self, team, room_name):
         if room_name is not None:
             await self.join_room(room_name)
 
-        logger.debug("Waiting for a {} challenge".format(battle_format))
-        await self.update_team(battle_format, team)
+        logger.debug("Waiting for a challenge")
         username = None
         while username is None:
             msg = await self.receive_message()
@@ -133,13 +133,14 @@ class PSWebsocketClient:
                 len(split_msg) == 9 and
                 split_msg[1] == "pm" and
                 split_msg[3].strip().replace("!", "").replace("‽", "") == self.username and
-                split_msg[4].startswith("/challenge") and
-                split_msg[5] == battle_format
+                split_msg[4].startswith("/challenge")
             ):
                 username = split_msg[2].strip()
+                await self.update_team(split_msg[5], team)
 
         message = ["/accept " + username]
         await self.send_message('', message)
+        return split_msg[5]
 
     async def search_for_match(self, battle_format, team):
         logger.debug("Searching for ranked {} match".format(battle_format))

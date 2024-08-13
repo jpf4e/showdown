@@ -1,11 +1,15 @@
-BATTLE_BOT=safest
+BATTLE_BOT=team_datasets
+EXBATTLE_BOT=safest
 WEBSOCKET_URI=wss://sim3.psim.us/showdown/websocket
-PS_USERNAME=MyUsername
-PS_PASSWORD=MyPassword
-BOT_MODE=SEARCH_LADDER
-POKEMON_MODE=gen7randombattle
-RUN_COUNT=1
+PS_USERNAME=JpF4E-Bot-Test
+PS_PASSWORD=kjrberkjbergberlgi.kln
+BOT_MODE=ACCEPT_CHALLENGE
+POKEMON_MODE=gen9randombattlemayhem
+EX2POKEMON_MODE=gen9randombattle
+EXPOKEMON_MODE=gen9nationaldexubers
 
-USER_TO_CHALLENGE=SomeOtherPerson
-TEAM_NAME=gen8/ou/clef_sand
+RUN_COUNT=10
+USER_TO_CHALLENGE=JpF4E
 SAVE_REPLAY=False
+LOG_LEVEL=DEBUG
+TEAM_NAME=gen9/ou/example8

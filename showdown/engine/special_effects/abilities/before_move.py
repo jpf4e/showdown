@@ -1,4 +1,4 @@
-from data import pokedex
+import data
 import constants
 from showdown.engine.helpers import calculate_stats
 
@@ -13,7 +13,7 @@ def stancechange(state, attacking_side, attacking_move, attacking_pokemon, defen
             return None
 
         new_stats = calculate_stats(
-            pokedex[change_stats_into][constants.BASESTATS],
+            data.pokedex[change_stats_into][constants.BASESTATS],
             attacking_pokemon.level,
             nature=attacking_pokemon.nature,
             evs=attacking_pokemon.evs

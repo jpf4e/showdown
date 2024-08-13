@@ -53,9 +53,6 @@ accuracy_multiplier_lookup = {
 }
 
 
-
-
-
 def get_instructions_from_move_special_effect(mutator, attacking_side, attacking_pokemon, defending_pokemon, move_name, instructions):
     if instructions.frozen:
         return [instructions]
@@ -85,7 +82,7 @@ def get_instructions_from_volatile_statuses(mutator, volatile_status, attacker, 
     elif affected_side in opposing_side_strings:
         affected_side = opposite_side[attacker]
     else:
-        logger.critical("Invalid affected_side: {}".format(affected_side))
+        logger.critical("Invalid affected_side: {} - {}".format(affected_side, volatile_status))
         return [instruction]
 
     side = get_side_from_state(mutator.state, affected_side)
@@ -161,6 +158,11 @@ def get_instructions_from_switch(mutator, attacker, switch_pokemon_name, instruc
     )
     mutator.apply_one(switch_instruction)
     instruction_additions.append(switch_instruction)
+
+    if not attacking_side.active.seen:
+        seen_instructions = (constants.MUTATOR_SEEN, attacker, switch_pokemon_name)
+        mutator.apply_one(seen_instructions)
+        instruction_additions.append(seen_instructions)
 
     switch_pkmn = attacking_side.active
     if switch_pkmn.item != 'heavydutyboots':

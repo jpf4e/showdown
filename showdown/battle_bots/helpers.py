@@ -1,11 +1,14 @@
 import logging
 
-import config
 import constants
+import time
 
+import data
 from showdown.engine.objects import StateMutator
 from showdown.engine.select_best_move import pick_safest
 from showdown.engine.select_best_move import get_payoff_matrix
+from showdown.engine.damage_calculator import type_effectiveness_modifier
+from showdown.engine.helpers import normalize_name
 
 
 logger = logging.getLogger(__name__)
@@ -32,12 +35,27 @@ def format_decision(battle, decision):
             message = "{} {}".format(message, constants.ULTRA_BURST)
 
         # only dynamax on last pokemon
-        if battle.user.active.can_dynamax and all(p.hp == 0 for p in battle.user.reserve):
-            message = "{} {}".format(message, constants.DYNAMAX)
+        if (
+                battle.user.active.can_dynamax and
+                len([p for p in battle.user.reserve if p.hp == 0]) > len(battle.user.reserve) / 2
+        ):
+            modifiers = [type_effectiveness_modifier(data.all_move_json[userMove.name][constants.TYPE], battle.opponent.active.types) for userMove in battle.user.active.moves if data.all_move_json[userMove.name][constants.CATEGORY] in constants.DAMAGING_CATEGORIES]
+            if (
+                    (len(modifiers) > 0 and max(modifiers) > 1) or
+                    all(p.hp == 0 for p in battle.user.reserve)
+            ):
+                message = "{} {}".format(message, constants.DYNAMAX)
 
-        # only terastallize on last pokemon. Come back to this later because this is bad.
-        elif battle.user.active.can_terastallize and all(p.hp == 0 for p in battle.user.reserve):
-            message = "{} {}".format(message, constants.TERASTALLIZE)
+        # only terastallize on last pokemon
+        elif (
+                battle.user.active.can_terastallize and
+                len([p for p in battle.user.reserve if p.hp == 0]) > len(battle.user.reserve) / 2
+        ):
+            maxOldTypeModifier = max([type_effectiveness_modifier(opType, battle.user.active.types) for opType in battle.opponent.active.types])
+            maxNewTypeModifier = max([type_effectiveness_modifier(opType, [normalize_name(battle.user.active.can_terastallize)]) for opType in battle.opponent.active.types])
+
+            if(maxNewTypeModifier <= maxOldTypeModifier):
+                message = "{} {}".format(message, constants.TERASTALLIZE)
 
         if battle.user.active.get_move(decision).can_z:
             message = "{} {}".format(message, constants.ZMOVE)
@@ -73,7 +91,7 @@ def pick_safest_move_from_battles(battles):
     return bot_choice
 
 
-def pick_safest_move_using_dynamic_search_depth(battles):
+def pick_safest_move_using_dynamic_search_depth(battles, team_preview=False):
     """
     Dynamically decides how far to look into the game.
 
@@ -90,11 +108,25 @@ def pick_safest_move_using_dynamic_search_depth(battles):
         for i, b in enumerate(battles):
             state = b.create_state()
             mutator = StateMutator(state)
-            user_options, opponent_options = b.get_all_options()
+            user_options, opponent_options = b.get_all_options(team_preview)
+
+            num_user_options = len(user_options)
+            num_opponent_options = len(opponent_options)
+            options_product = num_user_options * num_opponent_options
+
+            search_depth = search_depth if not team_preview or b.max_chosen_team_size in [1, 6] else 2
             logger.debug("Searching through the state: {}".format(mutator.state))
+            logger.debug("Options Product: {}".format(options_product))
+            logger.debug("My Options: {}".format(user_options))
+            logger.debug("Opponent Options: {}".format(opponent_options))
+            logger.debug("Search depth: {}".format(search_depth))
+            start_time = time.time()
             scores = get_payoff_matrix(mutator, user_options, opponent_options, depth=search_depth, prune=True)
             prefixed_scores = prefix_opponent_move(scores, str(i))
             all_scores = {**all_scores, **prefixed_scores}
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            logger.debug(f"Elapsed time: {elapsed_time} s")
 
     elif num_battles == 1:
         search_depth = 3
@@ -102,27 +134,33 @@ def pick_safest_move_using_dynamic_search_depth(battles):
         b = battles[0]
         state = b.create_state()
         mutator = StateMutator(state)
-        user_options, opponent_options = b.get_all_options()
+        user_options, opponent_options = b.get_all_options(team_preview)
 
         num_user_options = len(user_options)
         num_opponent_options = len(opponent_options)
         options_product = num_user_options * num_opponent_options
-        if options_product < 20 and num_user_options > 1 and num_opponent_options > 1:
+        if options_product <= 10 and num_user_options > 1 and num_opponent_options > 1:
             logger.debug("Low options product, looking an additional depth")
             search_depth += 1
 
+        search_depth = search_depth if not team_preview or b.max_chosen_team_size in [1, 6] else 2
         logger.debug("Searching through the state: {}".format(mutator.state))
         logger.debug("Options Product: {}".format(options_product))
         logger.debug("My Options: {}".format(user_options))
         logger.debug("Opponent Options: {}".format(opponent_options))
         logger.debug("Search depth: {}".format(search_depth))
+        start_time = time.time()
         all_scores = get_payoff_matrix(mutator, user_options, opponent_options, depth=search_depth, prune=True)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        logger.debug(f"Elapsed time: {elapsed_time} s")
 
     else:
         raise ValueError("less than 1 battle?: {}".format(battles))
 
     decision, payoff = pick_safest(all_scores, remove_guaranteed=True)
     bot_choice = decision[0]
+    logger.debug("Scores: {}".format(all_scores))
     logger.debug("Safest: {}, {}".format(bot_choice, payoff))
     logger.debug("Depth: {}".format(search_depth))
     return bot_choice

@@ -14,7 +14,7 @@ from showdown.engine.objects import StateMutator
 from showdown.engine.select_best_move import pick_safest
 from showdown.engine.select_best_move import get_payoff_matrix
 
-from ..safest.main import pick_safest_move_from_battles
+from ..safest.main import pick_safest_move_using_dynamic_search_depth
 from ..helpers import format_decision
 
 
@@ -172,19 +172,19 @@ class BattleBot(Battle):
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
 
-    def find_best_move(self):
+    def find_best_move(self, team_preview=False):
         battles = self.prepare_battles()
         if len(battles) > 7:
             logger.debug("Not enough is known about the opponent's active pokemon - falling back to safest decision making")
             battles = self.prepare_battles(join_moves_together=True)
-            decision = pick_safest_move_from_battles(battles)
+            decision = pick_safest_move_using_dynamic_search_depth(battles, team_preview)
         else:
             list_of_payoffs = list()
             for b in battles:
                 state = b.create_state()
                 mutator = StateMutator(state)
                 logger.debug("Attempting to find best move from: {}".format(mutator.state))
-                user_options, opponent_options = b.get_all_options()
+                user_options, opponent_options = b.get_all_options(team_preview)
                 scores = get_payoff_matrix(mutator, user_options, opponent_options, prune=False)
                 list_of_payoffs.append(scores)
 

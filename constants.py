@@ -6,32 +6,32 @@ BOT_MODES = [CHALLENGE_USER, ACCEPT_CHALLENGE, SEARCH_LADDER]
 STANDARD_BATTLE = "standard_battle"
 RANDOM_BATTLE = "random_battle"
 
-NO_TEAM_PREVIEW_GENS = {
-    "gen1",
-    "gen2",
-    "gen3",
-    "gen4"
-}
-
 PICK_SAFEST = "safest"
 PICK_NASH_EQUILIBRIUM = "nash"
 
+GEN_STRING = "|gen|"
 START_STRING = "|start"
 RQID = 'rqid'
 TEAM_PREVIEW_POKE = "poke"
 START_TEAM_PREVIEW = "clearpoke"
+TEAM_PREVIEW = "teamPreview"
+MAX_CHOSEN_TEAM_SIZE = "maxChosenTeamSize"
+MAX_CHOSEN_TEAM_SIZE_DICT = "max_chosen_team_size"
 
 MOVES = "moves"
 ABILITIES = "abilities"
 ITEMS = "items"
 COUNT = "count"
 SETS = "sets"
+SEEN = "seen"
 
 UNKNOWN_ITEM = "unknown_item"
 
 UNKOWN_POKEMON_FORMES = ['silvally', 'arceus', 'genesect', 'urshifu']
 
 SMOGON_HAS_STATS_PAGE_SUFFIXES = ["ubers", "ou", "uu", "ru", "nu", "pu", "lc", "oublitz", "nationaldexbeta", "nationaldex", "monotype"]
+
+RANDOM_TEAM_FORMATS = ["random", "generated", "bssfactory", "hackmonscup", "superstaffbrosultimate", "brokencup", "challengecup", "battlefactory", "gen8cap1v1"]
 
 # a lookup for the opponent's name given the bot's name
 # this has to do with the Pokemon-Showdown PROTOCOL
@@ -41,6 +41,7 @@ ID_LOOKUP = {
 }
 
 # mutator strings
+MUTATOR_SEEN = "seen"
 MUTATOR_SWITCH = "switch"
 MUTATOR_APPLY_VOLATILE_STATUS = "apply_volatile_status"
 MUTATOR_REMOVE_VOLATILE_STATUS = "remove_volatile_status"
@@ -89,6 +90,7 @@ USER = "user"
 NORMAL = 'normal'
 OPPONENT = "opponent"
 ALLY_SIDE = "allySide"
+ADJACENT_ALLY = "adjacentAlly"
 ALL_ADJACENT_FOES = "allAdjacentFoes"
 FOESIDE = "foeSide"
 ALL_ADJACENT = "allAdjacent"
@@ -121,6 +123,8 @@ SIDE = "side"
 POKEMON = "pokemon"
 FNT = "fnt"
 
+BATTLE_STRING = "battle"
+REQUEST_STRING = "request"
 SWITCH_STRING = "switch"
 WIN_STRING = "|win|"
 TIE_STRING = "|tie"
@@ -130,8 +134,8 @@ DETAILS = "details"
 IDENT = "ident"
 
 MEGA_EVOLVE_GENERATIONS = [
-    "gen6",
-    "gen7"
+    6,
+    7
 ]
 CAN_MEGA_EVO = "canMegaEvo"
 CAN_ULTRA_BURST = "canUltraBurst"
@@ -200,9 +204,12 @@ STAT_ABBREVIATION_REVERSE_LOOKUPS = {
 STAT_STRINGS = [ATTACK, DEFENSE, SPECIAL_ATTACK, SPECIAL_DEFENSE, SPEED]
 
 HIDDEN_POWER = 'hiddenpower'
-HIDDEN_POWER_TYPE_STRING_INDEX = -1
-HIDDEN_POWER_ACTIVE_MOVE_BASE_DAMAGE_STRING = "60"
-HIDDEN_POWER_RESERVE_MOVE_BASE_DAMAGE_STRING = ""
+DEFAULT_HIDDEN_POWER_TYPE_STRING_INDEX = -1
+HIDDEN_POWER_TYPE_STRING_INDEX = DEFAULT_HIDDEN_POWER_TYPE_STRING_INDEX
+DEFAULT_HIDDEN_POWER_ACTIVE_MOVE_BASE_DAMAGE_STRING = "60"
+HIDDEN_POWER_ACTIVE_MOVE_BASE_DAMAGE_STRING = DEFAULT_HIDDEN_POWER_ACTIVE_MOVE_BASE_DAMAGE_STRING
+DEFAULT_HIDDEN_POWER_RESERVE_MOVE_BASE_DAMAGE_STRING = ""
+HIDDEN_POWER_RESERVE_MOVE_BASE_DAMAGE_STRING = DEFAULT_HIDDEN_POWER_RESERVE_MOVE_BASE_DAMAGE_STRING
 
 FAINTED = "dead"
 
@@ -243,7 +250,8 @@ SUN = "sunnyday"
 SAND = "sandstorm"
 HAIL = "hail"
 SNOW = "snow"
-ICE_WEATHER = "snow"
+DEFAULT_ICE_WEATHER = "snow"
+ICE_WEATHER = DEFAULT_ICE_WEATHER
 DESOLATE_LAND = "desolateland"
 HEAVY_RAIN = "primordialsea"
 

@@ -2,8 +2,7 @@ from copy import copy
 from copy import deepcopy
 
 import constants
-from data import all_move_json
-from data import pokedex
+import data
 
 
 pokemon_type_indicies = {
@@ -63,8 +62,8 @@ SPECIAL_LOGIC_MOVES = {
     "painsplit": lambda attacker, defender: [defender.hp - (attacker.hp + defender.hp)/2],
 }
 
-
-TERRAIN_DAMAGE_BOOST = 1.3
+DEFAULT_TERRAIN_DAMAGE_BOOST = 1.3
+TERRAIN_DAMAGE_BOOST = DEFAULT_TERRAIN_DAMAGE_BOOST
 
 
 def _calculate_damage(attacker, defender, move, conditions=None, calc_type='average'):
@@ -186,7 +185,7 @@ def get_move(move):
     if isinstance(move, dict):
         return move
     if isinstance(move, str):
-        return deepcopy(all_move_json.get(move, None))
+        return deepcopy(data.all_move_json.get(move, None))
     else:
         return None
 
@@ -268,7 +267,7 @@ def stab_modifier(attacking_pokemon, attacking_move):
     if attacking_move[constants.TYPE] in [t for t in attacking_pokemon.types]:
         if (
             attacking_pokemon.terastallized and
-            attacking_pokemon.types[0] in pokedex[attacking_pokemon.id][constants.TYPES]
+            attacking_pokemon.types[0] in data.pokedex[attacking_pokemon.id][constants.TYPES]
         ):
             return 2
         else:
@@ -276,7 +275,7 @@ def stab_modifier(attacking_pokemon, attacking_move):
 
     elif (
         attacking_pokemon.terastallized and
-        attacking_move[constants.TYPE] in pokedex[attacking_pokemon.id][constants.TYPES]
+        attacking_move[constants.TYPE] in data.pokedex[attacking_pokemon.id][constants.TYPES]
     ):
         return 1.5
 
